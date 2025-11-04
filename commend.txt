@@ -1,0 +1,3 @@
+python -m PyInstaller --onefile --add-data "bootloader.bin;." --add-data "partitions.bin;." HexFlowUtility.py
+
+ 

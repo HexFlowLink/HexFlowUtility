@@ -1,0 +1,246 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+            arch: x64
+            extension: .exe
+          - os: macos-13
+            platform: macos
+            arch: x64
+            extension: ''
+          - os: macos-14
+            platform: macos
+            arch: arm64
+            extension: ''
+          - os: ubuntu-22.04
+            platform: linux
+            arch: x64
+            extension: ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Get and increment version
+        id: version
+        shell: bash
+        run: |
+          if [ -f VERSION ]; then
+            VERSION=$(cat VERSION | tr -d '[:space:]')
+          else
+            VERSION="1.0.0"
+          fi
+          
+          # Extract major.minor.patch
+          MAJOR=$(echo $VERSION | cut -d. -f1)
+          MINOR=$(echo $VERSION | cut -d. -f2)
+          PATCH=$(echo $VERSION | cut -d. -f3)
+          
+          # Increment patch version
+          PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          
+          echo "VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "$NEW_VERSION" > VERSION
+          echo "Version updated from $VERSION to $NEW_VERSION"
+
+      - name: Install system dependencies (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-glx libegl1-mesa libxrandr2 libxss1 libxcursor1 libxcomposite1 libasound2 libxi6 libxtst6
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PyInstaller PySide6 pyserial requests esptool
+
+      - name: Build application
+        shell: bash
+        run: |
+          pyinstaller --clean --noconfirm DASKLUG_UTILITY_TOOL.spec
+          ls -la dist/ || dir dist || echo "Build completed"
+
+      - name: Package Windows build
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: |
+          cd dist
+          if (Test-Path "DASKLUG_UTILITY_TOOL.exe") {
+            Compress-Archive -Path DASKLUG_UTILITY_TOOL.exe -DestinationPath ../DASKLUG_UTILITY_TOOL-Windows-x64-${{ env.VERSION }}.zip -Force
+          }
+
+      - name: Package macOS build
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          cd dist
+          if [ -f "DASKLUG_UTILITY_TOOL" ]; then
+            tar -czf ../DASKLUG_UTILITY_TOOL-macOS-${{ matrix.arch }}-${{ env.VERSION }}.tar.gz DASKLUG_UTILITY_TOOL
+          elif [ -d "DASKLUG_UTILITY_TOOL.app" ]; then
+            tar -czf ../DASKLUG_UTILITY_TOOL-macOS-${{ matrix.arch }}-${{ env.VERSION }}.tar.gz DASKLUG_UTILITY_TOOL.app
+          fi
+
+      - name: Package Linux build
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: |
+          cd dist
+          if [ -f "DASKLUG_UTILITY_TOOL" ]; then
+            tar -czf ../DASKLUG_UTILITY_TOOL-Linux-x64-${{ env.VERSION }}.tar.gz DASKLUG_UTILITY_TOOL
+          fi
+
+      - name: Upload Windows artifact
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DASKLUG_UTILITY_TOOL-Windows-x64
+          path: DASKLUG_UTILITY_TOOL-Windows-x64-${{ env.VERSION }}.zip
+
+      - name: Upload macOS artifact
+        if: matrix.platform == 'macos'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DASKLUG_UTILITY_TOOL-macOS-${{ matrix.arch }}
+          path: DASKLUG_UTILITY_TOOL-macOS-${{ matrix.arch }}-${{ env.VERSION }}.tar.gz
+
+      - name: Upload Linux artifact
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: DASKLUG_UTILITY_TOOL-Linux-x64
+          path: DASKLUG_UTILITY_TOOL-Linux-x64-${{ env.VERSION }}.tar.gz
+
+      - name: Upload VERSION file
+        uses: actions/upload-artifact@v4
+        with:
+          name: VERSION-${{ matrix.platform }}-${{ matrix.arch }}
+          path: VERSION
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download VERSION artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: VERSION-windows-x64
+          path: ./
+        continue-on-error: true
+
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          # Try to get VERSION from downloaded artifact
+          if [ -f VERSION-windows-x64/VERSION ]; then
+            VERSION=$(cat VERSION-windows-x64/VERSION | tr -d '[:space:]')
+          elif [ -f VERSION ]; then
+            VERSION=$(cat VERSION | tr -d '[:space:]')
+          else
+            # Fallback: calculate from git tags or use default
+            LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            if [ -z "$LAST_TAG" ]; then
+              VERSION="1.0.0"
+            else
+              # Extract version from tag (e.g., v1.0.5 -> 1.0.5)
+              VERSION=$(echo "$LAST_TAG" | sed 's/^v//')
+              # Increment patch
+              MAJOR=$(echo $VERSION | cut -d. -f1)
+              MINOR=$(echo $VERSION | cut -d. -f2)
+              PATCH=$(echo $VERSION | cut -d. -f3)
+              PATCH=$((PATCH + 1))
+              VERSION="${MAJOR}.${MINOR}.${PATCH}"
+            fi
+          fi
+          
+          echo "$VERSION" > VERSION
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+          pattern: DASKLUG_UTILITY_TOOL-*
+
+      - name: Commit version update
+        shell: bash
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add VERSION
+          if ! git diff --staged --quiet; then
+            git commit -m "Bump version to ${{ steps.version.outputs.version }} [skip ci]"
+            git push
+          else
+            echo "Version file already up to date"
+          fi
+
+      - name: Prepare release assets
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          find ./artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp {} release-assets/ \;
+          ls -la release-assets/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: DASKLUG UTILITY TOOL v${{ steps.version.outputs.version }}
+          body: |
+            ## DASKLUG UTILITY TOOL v${{ steps.version.outputs.version }}
+
+            ### Changes
+            - Automated build from main branch
+
+            ### Downloads
+            - **Windows x64**: DASKLUG_UTILITY_TOOL-Windows-x64-${{ steps.version.outputs.version }}.zip
+            - **macOS x64**: DASKLUG_UTILITY_TOOL-macOS-x64-${{ steps.version.outputs.version }}.tar.gz
+            - **macOS ARM64**: DASKLUG_UTILITY_TOOL-macOS-arm64-${{ steps.version.outputs.version }}.tar.gz
+            - **Linux x64 (Ubuntu/Debian)**: DASKLUG_UTILITY_TOOL-Linux-x64-${{ steps.version.outputs.version }}.tar.gz
+
+            ### Installation Instructions
+            - **Windows**: Extract the ZIP file and run `DASKLUG_UTILITY_TOOL.exe`
+            - **macOS**: Extract the TAR.GZ file and run the executable (may need to allow in Security settings)
+            - **Linux/Ubuntu**: 
+              1. Extract the TAR.GZ file
+              2. Make executable: `chmod +x DASKLUG_UTILITY_TOOL`
+              3. Run: `./DASKLUG_UTILITY_TOOL`
+          files: release-assets/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
