@@ -78,7 +78,7 @@ jobs:
       - name: Build application
         shell: bash
         run: |
-          pyinstaller --clean --noconfirm DASKLUG_UTILITY_TOOL.spec
+          pyinstaller --clean --noconfirm HexFlowUtility.spec
           ls -la dist/ || dir dist || echo "Build completed"
 
       - name: Package Windows build
@@ -86,8 +86,8 @@ jobs:
         shell: pwsh
         run: |
           cd dist
-          if (Test-Path "DASKLUG_UTILITY_TOOL.exe") {
-            Compress-Archive -Path DASKLUG_UTILITY_TOOL.exe -DestinationPath ../DASKLUG_UTILITY_TOOL-Windows-x64-${{ env.VERSION }}.zip -Force
+          if (Test-Path "HexFlowUtility.exe") {
+            Compress-Archive -Path HexFlowUtility.exe -DestinationPath ../HexFlowUtility-Windows-x64-${{ env.VERSION }}.zip -Force
           }
 
       - name: Package macOS build
@@ -95,10 +95,10 @@ jobs:
         shell: bash
         run: |
           cd dist
-          if [ -f "DASKLUG_UTILITY_TOOL" ]; then
-            tar -czf ../DASKLUG_UTILITY_TOOL-macOS-${{ matrix.arch }}-${{ env.VERSION }}.tar.gz DASKLUG_UTILITY_TOOL
-          elif [ -d "DASKLUG_UTILITY_TOOL.app" ]; then
-            tar -czf ../DASKLUG_UTILITY_TOOL-macOS-${{ matrix.arch }}-${{ env.VERSION }}.tar.gz DASKLUG_UTILITY_TOOL.app
+          if [ -f "HexFlowUtility" ]; then
+            tar -czf ../HexFlowUtility-macOS-${{ matrix.arch }}-${{ env.VERSION }}.tar.gz HexFlowUtility
+          elif [ -d "HexFlowUtility.app" ]; then
+            tar -czf ../HexFlowUtility-macOS-${{ matrix.arch }}-${{ env.VERSION }}.tar.gz HexFlowUtility.app
           fi
 
       - name: Package Linux build
@@ -106,30 +106,30 @@ jobs:
         shell: bash
         run: |
           cd dist
-          if [ -f "DASKLUG_UTILITY_TOOL" ]; then
-            tar -czf ../DASKLUG_UTILITY_TOOL-Linux-x64-${{ env.VERSION }}.tar.gz DASKLUG_UTILITY_TOOL
+          if [ -f "HexFlowUtility" ]; then
+            tar -czf ../HexFlowUtility-Linux-x64-${{ env.VERSION }}.tar.gz HexFlowUtility
           fi
 
       - name: Upload Windows artifact
         if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
         with:
-          name: DASKLUG_UTILITY_TOOL-Windows-x64
-          path: DASKLUG_UTILITY_TOOL-Windows-x64-${{ env.VERSION }}.zip
+          name: HexFlowUtility-Windows-x64
+          path: HexFlowUtility-Windows-x64-${{ env.VERSION }}.zip
 
       - name: Upload macOS artifact
         if: matrix.platform == 'macos'
         uses: actions/upload-artifact@v4
         with:
-          name: DASKLUG_UTILITY_TOOL-macOS-${{ matrix.arch }}
-          path: DASKLUG_UTILITY_TOOL-macOS-${{ matrix.arch }}-${{ env.VERSION }}.tar.gz
+          name: HexFlowUtility-macOS-${{ matrix.arch }}
+          path: HexFlowUtility-macOS-${{ matrix.arch }}-${{ env.VERSION }}.tar.gz
 
       - name: Upload Linux artifact
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
         with:
-          name: DASKLUG_UTILITY_TOOL-Linux-x64
-          path: DASKLUG_UTILITY_TOOL-Linux-x64-${{ env.VERSION }}.tar.gz
+          name: HexFlowUtility-Linux-x64
+          path: HexFlowUtility-Linux-x64-${{ env.VERSION }}.tar.gz
 
       - name: Upload VERSION file
         uses: actions/upload-artifact@v4
@@ -192,7 +192,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: ./artifacts
-          pattern: DASKLUG_UTILITY_TOOL-*
+          pattern: HexFlowUtility-*
 
       - name: Commit version update
         shell: bash
@@ -218,26 +218,26 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v${{ steps.version.outputs.version }}
-          name: DASKLUG UTILITY TOOL v${{ steps.version.outputs.version }}
+          name: HexFlowUtility v${{ steps.version.outputs.version }}
           body: |
-            ## DASKLUG UTILITY TOOL v${{ steps.version.outputs.version }}
+            ## HexFlowUtility v${{ steps.version.outputs.version }}
 
             ### Changes
             - Automated build from main branch
 
             ### Downloads
-            - **Windows x64**: DASKLUG_UTILITY_TOOL-Windows-x64-${{ steps.version.outputs.version }}.zip
-            - **macOS x64**: DASKLUG_UTILITY_TOOL-macOS-x64-${{ steps.version.outputs.version }}.tar.gz
-            - **macOS ARM64**: DASKLUG_UTILITY_TOOL-macOS-arm64-${{ steps.version.outputs.version }}.tar.gz
-            - **Linux x64 (Ubuntu/Debian)**: DASKLUG_UTILITY_TOOL-Linux-x64-${{ steps.version.outputs.version }}.tar.gz
+            - **Windows x64**: HexFlowUtility-Windows-x64-${{ steps.version.outputs.version }}.zip
+            - **macOS x64**: HexFlowUtility-macOS-x64-${{ steps.version.outputs.version }}.tar.gz
+            - **macOS ARM64**: HexFlowUtility-macOS-arm64-${{ steps.version.outputs.version }}.tar.gz
+            - **Linux x64 (Ubuntu/Debian)**: HexFlowUtility-Linux-x64-${{ steps.version.outputs.version }}.tar.gz
 
             ### Installation Instructions
-            - **Windows**: Extract the ZIP file and run `DASKLUG_UTILITY_TOOL.exe`
+            - **Windows**: Extract the ZIP file and run `HexFlowUtility.exe`
             - **macOS**: Extract the TAR.GZ file and run the executable (may need to allow in Security settings)
             - **Linux/Ubuntu**: 
               1. Extract the TAR.GZ file
-              2. Make executable: `chmod +x DASKLUG_UTILITY_TOOL`
-              3. Run: `./DASKLUG_UTILITY_TOOL`
+              2. Make executable: `chmod +x HexFlowUtility`
+              3. Run: `./HexFlowUtility`
           files: release-assets/*
           draft: false
           prerelease: false
