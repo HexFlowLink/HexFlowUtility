@@ -53,6 +53,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QFileDialog,
+    QRadioButton,
+    QDialogButtonBox,
+    QDialog
 )
 
  
@@ -107,19 +110,23 @@ def save_config(config: dict) -> None:
         pass
 
 
-def get_api_url() -> str:
+def get_api_url(apibase="default") -> str:
     """Get API URL from current configuration."""
     config = load_config()
-    host = config.get("host", DEFAULT_HOST)
+    host = config.get("selected_host", DEFAULT_HOST)
+    if(apibase == "default"):
+        apiendurl = "webapp/devices/getFirmware"
+    else:
+        apiendurl = "api/firmwares/getFirmware"
     
     # If host already includes protocol, use it as-is and append path
     if host.startswith("https://") or host.startswith("http://"):
         # Remove trailing slash if present
         host = host.rstrip("/")
-        return f"{host}/webapp/devices/getFirmware"
+        return f"{host}/{apiendurl}"
     
     # Otherwise, default to https://
-    return f"https://{host}/webapp/devices/getFirmware"
+    return f"https://{host}/{apiendurl}"
 
 
 class MainWindow(QMainWindow):
@@ -177,6 +184,14 @@ class MainWindow(QMainWindow):
         self.host_settings_btn.setText("⚙")
         self.host_settings_btn.setToolTip("Change API host")
         ports_layout.addWidget(self.host_settings_btn, 3, 2)
+
+        # self.dev_radio = QRadioButton("Dev - https://hadasklugv2-dev.smartguest.ai")
+        # self.prod_radio = QRadioButton("Prod - https://cloud.dasklug.com")
+        # self.custom_radio = QRadioButton("Custom")
+
+        # ports_layout.addWidget(self.dev_radio)
+        # ports_layout.addWidget(self.prod_radio)
+        # ports_layout.addWidget(self.custom_radio)
 
         self.flash_btn = QPushButton("FLASH")
         # Set red background color for flash button with hover/pressed effects
@@ -333,16 +348,32 @@ class MainWindow(QMainWindow):
     # Firmware handling
     def _load_firmware_list(self) -> None:
         try:
-            api_url = get_api_url()
+            api_url = get_api_url("default")
             res = requests.get(api_url, timeout=15)
             res.raise_for_status()
             data = res.json()
             firmwares = data.get("firmware", [])
         except Exception as exc:
-            self._append_log(f"Failed to fetch firmware list: {exc}\n")
-            firmwares = []
+            # self._append_log(f"Failed to fetch firmware list: {exc}\n")
+            self._append_log(f"Retry to fetch firmware list: {exc}\n")
+            # firmwares = []
+            try:
+                self._append_log(f"GET FIRMWARE LIST:\n")
+                api_url = get_api_url("custom")
+                # self._append_log(f"API URL:{api_url}\n")
+                res = requests.get(api_url, timeout=15)
+                res.raise_for_status()
+                data = res.json()
+                # self._append_log(f"DATASSS:{data}\n")
+                firmwares = data.get("firmware", [])
+                # firmwares = []
+            except Exception as exc:
+                self._append_log(f"Failed to fetch firmware list: {exc}\n")
+                firmwares = []
 
         self.fw_combo.clear()
+        # self._append_log(f"API URL:{api_url}\n")
+        # self._append_log(f"API DATAS:{firmwares}\n")
         for item in firmwares:
             name = f"{item.get('name','fw')} v{item.get('version','')}"
             self.fw_combo.addItem(name, item)
@@ -352,30 +383,99 @@ class MainWindow(QMainWindow):
     def _change_host(self) -> None:
         """Show dialog to change API host and save to config."""
         config = load_config()
-        current_host = config.get("host", DEFAULT_HOST)
+        hosts = config.get("host", DEFAULT_HOST)
+        # if isinstance(hosts, list) and hosts:
+        #     current_host = hosts[0]
+        # else:
+        #     DEFAULT_HOST
+
+        current_host = config.get("selected_host", DEFAULT_HOST)
         
-        new_host, ok = QInputDialog.getText(
-            self,
-            "Change API Host",
-            f"Enter new API host (with https:// or http://):\nCurrent: {current_host}",
-            text=current_host
-        )
+        # new_host, ok = QInputDialog.getText(
+        #     self,
+        #     "Change API Host",
+        #     f"Enter new API host (with https:// or http://):\nCurrent: {current_host}",
+        #     text=current_host
+        # )
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Change API Host")
+
+        layout = QVBoxLayout(dialog)
+
+        label = QLabel(f"Enter new API host (with https:// or http://):\nCurrent: {current_host}")
+        layout.addWidget(label)
+
+        host_input = QLineEdit()
+        host_input.setText(current_host)
+        layout.addWidget(host_input)
+
+        radio_buttons = []
+
+        # Radio buttons
+        if isinstance(hosts, list):
+            for host in hosts:
+                radio = QRadioButton(host)
+                layout.addWidget(radio)
+                radio_buttons.append(radio)
+
+                if host == current_host:
+                    radio.setChecked(True)
+
+                radio.toggled.connect(lambda checked, h=host: host_input.setText(h) if checked else None)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        layout.addWidget(buttons)
+
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+
+        if not dialog.exec():
+            return
+
+        # After OK pressed
+        # if dev_radio.isChecked():
+        #     new_host = "https://hadasklugv2-dev.smartguest.ai"
+        # elif prod_radio.isChecked():
+        #     new_host = "https://cloud.dasklug.com"
+        # else:
+        #     new_host = host_input.text().strip()
+
         
-        if ok and new_host.strip():
-            new_host = new_host.strip()
-            # Remove trailing slash if present
-            new_host = new_host.rstrip("/")
-            
-            # Validate URL format
-            if new_host:
-                # If user didn't include protocol, add https://
-                if not new_host.startswith("https://") and not new_host.startswith("http://"):
-                    new_host = f"https://{new_host}"
-                
-                config["host"] = new_host
-                save_config(config)
-                self._append_log(f"API Host changed to: {new_host}\n")
-                self._load_firmware_list()  # Reload firmware list with new host
+        selected_host = None
+        for radio in radio_buttons:
+            if radio.isChecked():
+                selected_host = radio.text()
+                break
+
+        if not host_input.text().strip():
+            new_host = selected_host
+        else:
+            new_host = host_input.text().strip()
+
+        # Remove trailing slash if present
+        new_host = new_host.rstrip("/")
+        
+        # If user didn't include protocol, add https://
+        if not new_host.startswith("https://") and not new_host.startswith("http://"):
+            new_host = f"https://{new_host}"
+        
+        # Make sure host is a list
+        if "host" not in config or not isinstance(config["host"], list):
+            config["host"] = []
+
+        # Add only if not already present
+        if new_host not in config["host"]:
+            config["host"].append(new_host)
+            self._append_log(f"Added new host: {new_host}\n")
+        else:
+            self._append_log(f"Host already exists: {new_host}\n")
+        config['selected_host'] = new_host
+        save_config(config)
+        host_input.setText(new_host)
+
+        self._append_log(f"API Host changed to: {new_host}\n")
+        self._load_firmware_list()  # Reload firmware list with new host
 
     def _browse_firmware(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Select firmware (bin)", os.getcwd(), "BIN (*.bin)")

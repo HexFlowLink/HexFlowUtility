@@ -1,3 +1,7 @@
 {
-  "host": "https://hadasklugv2-dev.smartguest.ai"
+  "host": [
+    "https://hadasklugv2-dev.smartguest.ai",
+    "https://cloud.dasklug.com"
+  ],
+  "selected_host": "https://hadasklugv2-dev.smartguest.ai"
 }
