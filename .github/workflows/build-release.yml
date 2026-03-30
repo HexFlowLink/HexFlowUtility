@@ -16,10 +16,10 @@ jobs:
             platform: windows
             arch: x64
             extension: .exe
-          - os: macos-13
-            platform: macos
-            arch: x64
-            extension: ''
+          # - os: macos-13
+          #   platform: macos
+          #   arch: x64
+          #   extension: ''
           - os: macos-14
             platform: macos
             arch: arm64
