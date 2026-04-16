@@ -173,25 +173,30 @@ class MainWindow(QMainWindow):
 
         ports_layout.addWidget(QLabel("Select Firmware"), 2, 0, 1, 2)
         self.fw_combo = QComboBox()
+        self.fw_combo.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         ports_layout.addWidget(self.fw_combo, 3, 0, 1, 1)
+
+        self.fw_refresh_btn = QToolButton()
+        self.fw_refresh_btn.setText("↻")
+        self.fw_refresh_btn.setToolTip("Refresh firmwares")
+        ports_layout.addWidget(self.fw_refresh_btn, 3, 1)
 
         self.fw_browse_btn = QToolButton()
         self.fw_browse_btn.setText("⋯")
         self.fw_browse_btn.setToolTip("Browse local firmware file")
-        ports_layout.addWidget(self.fw_browse_btn, 3, 1)
+        ports_layout.addWidget(self.fw_browse_btn, 3, 2)
 
         self.host_settings_btn = QToolButton()
         self.host_settings_btn.setText("⚙")
         self.host_settings_btn.setToolTip("Change API host")
-        ports_layout.addWidget(self.host_settings_btn, 3, 2)
+        ports_layout.addWidget(self.host_settings_btn, 3, 3)
 
-        # self.dev_radio = QRadioButton("Dev - https://hadasklugv2-dev.smartguest.ai")
-        # self.prod_radio = QRadioButton("Prod - https://cloud.dasklug.com")
-        # self.custom_radio = QRadioButton("Custom")
+        hbox = QHBoxLayout()
+        hbox.setSpacing(10)  
+        hbox.addWidget(self.fw_browse_btn)
+        hbox.addWidget(self.host_settings_btn)
 
-        # ports_layout.addWidget(self.dev_radio)
-        # ports_layout.addWidget(self.prod_radio)
-        # ports_layout.addWidget(self.custom_radio)
+        ports_layout.addLayout(hbox, 3, 2)
 
         self.flash_btn = QPushButton("FLASH")
         # Set red background color for flash button with hover/pressed effects
@@ -210,7 +215,7 @@ class MainWindow(QMainWindow):
             "  background-color: #bd2130;"
             "}"
         )
-        ports_layout.addWidget(self.flash_btn, 3, 3)
+        ports_layout.addWidget(self.flash_btn, 3, 4)
 
         self.erase_flash_btn = QPushButton("ERASE FLASH")
         # Set orange/red background color for erase flash button
@@ -229,7 +234,7 @@ class MainWindow(QMainWindow):
             "  background-color: #d65805;"
             "}"
         )
-        ports_layout.addWidget(self.erase_flash_btn, 3, 4)
+        ports_layout.addWidget(self.erase_flash_btn, 3, 5)
 
         root.addWidget(ports_group)
 
@@ -285,6 +290,7 @@ class MainWindow(QMainWindow):
 
         # Wiring
         self.refresh_btn.clicked.connect(self._refresh_ports)
+        self.fw_refresh_btn.clicked.connect(self._load_firmware_list)
         self.connect_btn.toggled.connect(self._toggle_connect)
         self.flash_btn.clicked.connect(self._on_flash)
         self.erase_flash_btn.clicked.connect(self._on_erase_flash)
@@ -355,10 +361,10 @@ class MainWindow(QMainWindow):
             firmwares = data.get("firmware", [])
         except Exception as exc:
             # self._append_log(f"Failed to fetch firmware list: {exc}\n")
-            self._append_log(f"Retry to fetch firmware list: {exc}\n")
+            # self._append_log(f"Retry to fetch firmware list\n")
             # firmwares = []
             try:
-                self._append_log(f"GET FIRMWARE LIST:\n")
+                # self._append_log(f"GET FIRMWARE LIST:\n")
                 api_url = get_api_url("custom")
                 # self._append_log(f"API URL:{api_url}\n")
                 res = requests.get(api_url, timeout=15)
